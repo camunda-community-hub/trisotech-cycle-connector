@@ -8,6 +8,7 @@ This community extension for camunda Cycle provides connectors for integrating c
 | Tool            | Connector                                               | Contributor                                          |
 | ----------------|---------------------------------------------------------|------------------------------------------------------|
 | Ibo Prometheus  | [ibo-prometheus-connector](/ibo-prometheus-connector)   | [IBO Software GmbH](https://github.com/simonhoss)    |
+| Trisotech       | [trisotech-connector](/trisotech-cycle-connector)       | [Trisotech](http://www.trisotech.com/)               |
 
 
 ### How to use it
