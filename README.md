@@ -1,26 +1,17 @@
-# camunda cycle connectors
+# Camunda Cycle Trisotech Connector
 
-This community extension for camunda Cycle provides connectors for integrating camunda Cycle with different BPM modeling tools.
-
-
-### List of available Connectors
-
-| Tool            | Connector                                               | Contributor                                          |
-| ----------------|---------------------------------------------------------|------------------------------------------------------|
-| Ibo Prometheus  | [ibo-prometheus-connector](/ibo-prometheus-connector)   | [IBO Software GmbH](https://github.com/simonhoss)    |
-| Trisotech       | [trisotech-connector](/trisotech-cycle-connector)       | [Trisotech](http://www.trisotech.com/)               |
+This is a Trisotech Connector for [camunda Cycle][1]. It contains the implementation of a connector which persists and syncronizes bmpn models between the a triotech repository and another location, like a fire repository.  
+![Create Connector Screenshot][2]
 
 
-### How to use it
+## How to use it?
 
-1. Checkout the connector with Git
-2. Build it with maven
-3. Deploy it to a camunda Cycle distro of your own choice as explained in the  [Installation Guide](http://docs.camunda.org/latest/guides/installation-guide/camunda-cycle/#configuration-adding-connectors)
+1. Checkout the project with Git
+2. Build the project with maven
+3. Deploy the jar file to a cycle distribution (see [installation guide][3])
+4. Update the `connector-configurations.xml` file
+4. Start Cycle, goto Connectors and add a new Example Connector
 
-### Contribute!
-
-Everybody is welcome to contribute! You can help by sending us a pull request with your implementation of a Connector. Please include the Connector Configuration snippet which must be added to the `connector-configurations.xml` file.
-
-  * Website: http://www.camunda.org/
-  * Contribution Guidelines: http://www.camunda.org/community/contribute.html
-  * License: Apache License, Version 2.0  http://www.apache.org/licenses/LICENSE-2.0
+[1]: http://docs.camunda.org/latest/guides/user-guide/#cycle
+[2]: docs/screenshot.png
+[3]: http://docs.camunda.org/latest/guides/installation-guide/camunda-cycle/#configuration-adding-connectors
