@@ -4,6 +4,10 @@ This is a Trisotech Connector for [camunda Cycle][1]. It contains the implementa
 
 ![Create Connector Screenshot][2]
 
+**It is important to note that the username could be anything but the password must be a valid authentication token obtained from accessing the url:{trisotechBaseUrl}/publicapi/login from a browser and copy/pasting the value of the authToken variable in the response.**
+The trisotechBaseUrl should only be modified if your company have a private Digital Enterprise Server.
+
+
 ## How to use it?
 
 1. Checkout the project with Git

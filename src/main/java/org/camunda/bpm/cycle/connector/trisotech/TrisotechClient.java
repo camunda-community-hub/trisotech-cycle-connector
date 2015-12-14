@@ -100,7 +100,7 @@ public class TrisotechClient {
 	  private Executor requestExecutor;
 
 	  private String configurationName;
-	  private String trisotechBaseUrl; //The default should be - https://cloud.trisotech.com/publicapi/
+	  private String trisotechBaseUrl; //The default should be - https://cloud.trisotech.com
 	  private String proxyUrl;
 	  private String proxyUsername;
 	  private String proxyPassword;
@@ -116,6 +116,17 @@ public class TrisotechClient {
 		  
 		    this.configurationName = configurationName;
 		    this.trisotechBaseUrl = trisotechBaseUrl;
+            //Correct user inputted url
+            if(this.trisotechBaseUrl.endsWith("/")){
+                this.trisotechBaseUrl = this.trisotechBaseUrl.substring(0, this.trisotechBaseUrl.length() - 1);
+            }
+            if(!this.trisotechBaseUrl.endsWith("/publicapi")) {
+               this.trisotechBaseUrl = this.trisotechBaseUrl + "/publicapi";
+            }
+            if(!this.trisotechBaseUrl.startsWith("http")){
+                this.trisotechBaseUrl = "https://" + this.trisotechBaseUrl;
+            }
+            System.out.println("USING" + this.trisotechBaseUrl);
 		    this.proxyUrl = proxyUrl;
 		    this.proxyUsername = proxyUsername;
 		    this.proxyPassword = proxyPassword;
@@ -251,28 +262,17 @@ public class TrisotechClient {
 	 
 	  public boolean login(String username, String password) {   
 		    
-//	This is being commented out until trisotech sort out their login REST call
-//		  
-//		  URIBuilder builder = new URIBuilder()
-//		    	.setScheme("https")
-//	            .setHost(requestUrl(LOGIN_URL_SUFFIX).toString())
-//	            .setParameter("username", username)
-//	            .setParameter("password", password)
-//	            .setParameter("mode", "json");
-//		    	
 
-		// Until the login works - as a temporary measure, we're going to use a test token. 
-		  String testToken = "a16e1c9b-e0c4-4f17-9c03-359faf24429a";
+         // The login token is saved in the password
+		  String testToken = password;
 		  
-		  // https://cloud.trisotech.com/publicapi/login?mode=xml&authtoken=
-		  URIBuilder builder = new URIBuilder()
-	    	.setScheme("https")
-	    	.setHost(requestUrl(LOGIN_URL_SUFFIX).toString())
-	    	.setParameter("mode", "json")
-		  	.setParameter("authtoken", testToken);
-		    
 		    URI uri = null;
 		    try {
+              // https://cloud.trisotech.com/publicapi/login?mode=xml&authtoken=
+              URIBuilder builder = new URIBuilder(requestUrl(LOGIN_URL_SUFFIX).toString())
+                .setParameter("mode", "json")
+                .setParameter("authtoken", testToken);
+		    
 				uri = builder.build();
 			} catch (URISyntaxException e) {
 				e.printStackTrace();
@@ -284,10 +284,9 @@ public class TrisotechClient {
 		    			request.addHeader("accept", ContentType.APPLICATION_JSON.getMimeType());
 		    HttpResponse response = executeAndGetResponse(request);
 		    
-		    String responseResult = extractResponseResult(response);
-		   // System.out.println(responseResult);
-		    if (responseResult == null || responseResult.equals("")) {
-		      throw new CycleException("Could not login into connector '" + configurationName + "'. The user name and/or password might be incorrect.");
+		    String responseResult = extractResponseResult(response);		    
+		    if (responseResult == null || responseResult.equals("") || responseResult.contains("InvalidMemberCredentials")) {
+		      throw new CycleException("Could not login into connector '" + configurationName + "'. The user name and/or password might be incorrect. Make sure that you use the authToken obtained from " + trisotechBaseUrl + "/login as your password." );
 		    }
 		    
 		    String authTokenTemp = "";
@@ -308,16 +307,14 @@ public class TrisotechClient {
 	  
 	  public String getRepositories()
 	  {
-		  //https://cloud.trisotech.com/publicapi/repository?authtoken=a16e1c9b-e0c4-4f17-9c03-&mode=json
-		  URIBuilder builder = new URIBuilder()
-	    	.setScheme("https")
-	    	.setHost(requestUrl(REPOSITORY_URL_SUFFIX).toString())
-	    	.setParameter("mimetype", MIMETYPE_URL_SUFFIX)
-	    	.setParameter("mode", "json")
-		  	.setParameter("authtoken", getAuthToken());
 		    
 		    URI uri = null;
 		    try {
+              //https://cloud.trisotech.com/publicapi/repository?authtoken=a16e1c9b-e0c4-4f17-9c03-&mode=json
+              URIBuilder builder = new URIBuilder(requestUrl(REPOSITORY_URL_SUFFIX).toString())
+                .setParameter("mimetype", MIMETYPE_URL_SUFFIX)
+                .setParameter("mode", "json")
+                .setParameter("authtoken", getAuthToken());
 				uri = builder.build();
 			} catch (URISyntaxException e) {
 				e.printStackTrace();
@@ -351,10 +348,9 @@ public class TrisotechClient {
 		      
 		      URI requestURI = builder.build();
 		      logger.fine(requestURI.toString());
-		     // System.out.println(requestURI.toString());
 		      return requestURI;
 		    } catch (URISyntaxException e) {
-		      throw new CycleException("Failed to construct url for signavio request.", e);
+		      throw new CycleException("Failed to construct url for trisotech request.", e);
 		    }
 		  }
 	  
@@ -476,18 +472,15 @@ public class TrisotechClient {
 
 
 	public String getChildren(TrisotechConnectorNode parent) {
-	
-		URIBuilder builder = new URIBuilder()
-	    	.setScheme("https")
-	    	.setHost(requestUrl(REPOSITORY_CONTENT_URL_SUFFIX).toString())
-	    	.setParameter("repository", getRespositoryName(parent))
-	    	.setParameter("mode", "json")
-	    	.setParameter("mimetype", MIMETYPE_URL_SUFFIX)
-		  	.setParameter("authtoken", getAuthToken())
-		  	.setParameter("path", parent.getTrisotechPath()); 
-		    
+			    
 		    URI uri = null;
 		    try {
+                URIBuilder builder = new URIBuilder(requestUrl(REPOSITORY_CONTENT_URL_SUFFIX).toString())
+                    .setParameter("repository", getRespositoryName(parent))
+                    .setParameter("mode", "json")
+                    .setParameter("mimetype", MIMETYPE_URL_SUFFIX)
+                    .setParameter("authtoken", getAuthToken())
+                    .setParameter("path", parent.getTrisotechPath()); 
 				uri = builder.build();
 			} catch (URISyntaxException e) {
 				e.printStackTrace();
@@ -571,18 +564,15 @@ public class TrisotechClient {
 
 
 	public String createFolder(TrisotechConnectorNode parent, String label) {
-
-		URIBuilder builder = new URIBuilder()
-    	.setScheme("https")
-    	.setHost(requestUrl(REPOSITORY_CONTENT_URL_SUFFIX).toString())
-    	.setParameter("repository", getRespositoryName(parent))
-    	.setParameter("mode", "json")
-    	.setParameter("authtoken", getAuthToken())
-    	.setParameter("path", parent.getTrisotechPath()+label); // we're adding the parent directory and the name of the file together. 
-		//.setParameter("path", getPathFromNode(parent)+label); 
-	    
+    
 	    URI uri = null;
 	    try {
+            URIBuilder builder = new URIBuilder(requestUrl(REPOSITORY_CONTENT_URL_SUFFIX).toString())
+            .setParameter("repository", getRespositoryName(parent))
+            .setParameter("mode", "json")
+            .setParameter("authtoken", getAuthToken())
+            .setParameter("path", parent.getTrisotechPath()+label); // we're adding the parent directory and the name of the file together. 
+            //.setParameter("path", getPathFromNode(parent)+label); 
 			uri = builder.build();
 		} catch (URISyntaxException e) {
 			e.printStackTrace();
@@ -620,24 +610,19 @@ public class TrisotechClient {
 	
 	public String createFileInRepository(TrisotechConnectorNode node, InputStream newContent, String message) {
 		
-		URIBuilder builder = new URIBuilder()
-    	.setScheme("https")
-    	.setHost(requestUrl(REPOSITORY_CONTENT_URL_SUFFIX).toString())
-    	.setParameter("repository", getRespositoryName(node))
-    	.setParameter("mimetype", MIMETYPE_URL_SUFFIX)
-    	.setParameter("mode", "json")
-    	.setParameter("authtoken", getAuthToken())
-    	.setParameter("path", node.getTrisotechPath()); // this should be the name of the path without the filename attached
 		
 	    URI uri = null;
 	    try {
+            URIBuilder builder = new URIBuilder(requestUrl(REPOSITORY_CONTENT_URL_SUFFIX).toString())
+            .setParameter("repository", getRespositoryName(node))
+            .setParameter("mimetype", MIMETYPE_URL_SUFFIX)
+            .setParameter("mode", "json")
+            .setParameter("authtoken", getAuthToken())
+            .setParameter("path", node.getTrisotechPath()); // this should be the name of the path without the filename attached
 			uri = builder.build();
 		} catch (URISyntaxException e) {
 			e.printStackTrace();
 		}
-	    
-	    logger.log(Level.INFO, builder.toString());
-	    System.out.println(builder.toString());
 	    
 	    HttpClient httpclient = new DefaultHttpClient();
 	    HttpPost httpPost = new HttpPost(uri);
@@ -727,16 +712,14 @@ public class TrisotechClient {
 
 	public String deleteFolder(TrisotechConnectorNode node) {
 		
-		URIBuilder builder = new URIBuilder()
-    	.setScheme("https")
-    	.setHost(requestUrl(REPOSITORY_CONTENT_URL_SUFFIX).toString())
-    	.setParameter("repository", getRespositoryName(node))
-    	.setParameter("mode", "json")
-    	.setParameter("authtoken", getAuthToken())
-		.setParameter("id", node.getTrisotechPath()); // The trisotech path of a folder node contains it's name e.g. /test1/thisfolder - so no need to add the "lable"
 	    
 	    URI uri = null;
 	    try {
+            URIBuilder builder = new URIBuilder(requestUrl(REPOSITORY_CONTENT_URL_SUFFIX).toString())
+            .setParameter("repository", getRespositoryName(node))
+            .setParameter("mode", "json")
+            .setParameter("authtoken", getAuthToken())
+            .setParameter("id", node.getTrisotechPath()); // The trisotech path of a folder node contains it's name e.g. /test1/thisfolder - so no need to add the "lable"
 			uri = builder.build();
 		} catch (URISyntaxException e) {
 			e.printStackTrace();
@@ -759,17 +742,15 @@ public class TrisotechClient {
 
 	public String deleteFile(TrisotechConnectorNode node) {
 		
-		URIBuilder builder = new URIBuilder()
-    	.setScheme("https")
-    	.setHost(requestUrl(REPOSITORY_CONTENT_URL_SUFFIX).toString())
-    	.setParameter("repository", getRespositoryName(node))
-    	.setParameter("mode", "json")
-    	.setParameter("authtoken", getAuthToken())
-    	.setParameter("mimetype", MIMETYPE_URL_SUFFIX)
-		.setParameter("sku", node.getTrisotechPath()+node.getLabel()); // The "label" in this case is in fact the ID on there side.
 	    
 	    URI uri = null;
 	    try {
+            URIBuilder builder = new URIBuilder(requestUrl(REPOSITORY_CONTENT_URL_SUFFIX).toString())
+            .setParameter("repository", getRespositoryName(node))
+            .setParameter("mode", "json")
+            .setParameter("authtoken", getAuthToken())
+            .setParameter("mimetype", MIMETYPE_URL_SUFFIX)
+            .setParameter("sku", node.getTrisotechPath()+node.getLabel()); // The "label" in this case is in fact the ID on there side.
 			uri = builder.build();
 		} catch (URISyntaxException e) {
 			e.printStackTrace();

@@ -47,7 +47,7 @@ public class TrisotechConnector extends Connector {
   @Inject
   private CycleConfiguration cycleConfiguration;
   
-  public final static String CONFIG_KEY_TRISOTECH_BASE_URL = "tBaseUrl";
+  public final static String CONFIG_KEY_TRISOTECH_BASE_URL = "trisotechBaseUrl";
   public final static String CONFIG_KEY_PROXY_URL = "proxyUrl";
   public final static String CONFIG_KEY_PROXY_USERNAME = "proxyUsername";
   public final static String CONFIG_KEY_PROXY_PASSWORD = "proxyPassword";
