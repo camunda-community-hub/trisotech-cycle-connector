@@ -1,6 +1,7 @@
 # Camunda Cycle Trisotech Connector
 
-This is a Trisotech Connector for [camunda Cycle][1]. It contains the implementation of a connector which persists and syncronizes bmpn models between the a triotech repository and another location, like a fire repository.  
+This is a Trisotech Connector for [camunda Cycle][1]. It contains the implementation of a connector which persists and synchronizes BPMN models between the a Trisotech repository and another location, like a file repository.  
+
 ![Create Connector Screenshot][2]
 
 ## How to use it?
