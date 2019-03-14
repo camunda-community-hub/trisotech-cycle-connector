@@ -23,55 +23,53 @@ import org.camunda.bpm.cycle.connector.ConnectorNodeType;
  */
 public class TrisotechConnectorNode extends ConnectorNode {
 
-  private static final long serialVersionUID = 1L;
-  private boolean isRepository = false;
-  private String repositoryName = "";
-  private String fileLocation = "";
-  private String trisotechPath ="";
+    private static final long serialVersionUID = 1L;
 
-  protected byte[] content;
+    private String fileLocation = "";
 
-  public TrisotechConnectorNode(String label, long connectorId) {
-    super(label, label, connectorId, ConnectorNodeType.FOLDER);
-  }
-  
-  public TrisotechConnectorNode(String label, String name, ConnectorNodeType nodeType) {
-	    super(label, name, nodeType);
-	  }
+    private String trisotechPath = "";
 
-  public TrisotechConnectorNode(String label, long connectorId, ConnectorNodeType nodeType) {
-    super(label, label, connectorId, nodeType);
-  }
+    protected byte[] content;
 
-  public TrisotechConnectorNode() {
-	// TODO Auto-generated constructor stub
-}
+    public TrisotechConnectorNode(String label, long connectorId) {
+        super(label, label, connectorId, ConnectorNodeType.FOLDER);
+    }
 
-public byte[] getContent() {
-    return content;
-  }
+    public TrisotechConnectorNode(String label, String name, ConnectorNodeType nodeType) {
+        super(label, name, nodeType);
+    }
 
-  public void setContent(byte[] content) {
-    this.setLastModified(new Date());
-    this.content = content;
-  }
-  	
+    public TrisotechConnectorNode(String label, long connectorId, ConnectorNodeType nodeType) {
+        super(label, label, connectorId, nodeType);
+    }
 
-	public String getTrisotechPath() {
-	return trisotechPath;
-	}
-	
-	public void setTrisotechPath(String trisotechPath) {
-		this.trisotechPath = trisotechPath;
-	}
+    public TrisotechConnectorNode() {
+        // TODO Auto-generated constructor stub
+    }
 
-	public String getFileLocation() {
-		return fileLocation;
-	}
+    public byte[] getContent() {
+        return content;
+    }
 
-	public void setFileLocation(String fileLocation) {
-		this.fileLocation = fileLocation;
-	}
+    public void setContent(byte[] content) {
+        this.setLastModified(new Date());
+        this.content = content;
+    }
 
+    public String getTrisotechPath() {
+        return trisotechPath;
+    }
+
+    public void setTrisotechPath(String trisotechPath) {
+        this.trisotechPath = trisotechPath;
+    }
+
+    public String getFileLocation() {
+        return fileLocation;
+    }
+
+    public void setFileLocation(String fileLocation) {
+        this.fileLocation = fileLocation;
+    }
 
 }

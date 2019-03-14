@@ -11,16 +11,32 @@ The trisotechBaseUrl should only be modified if your company have a private Digi
 ## How to use it?
 
 1. Checkout the project with Git
-2. Build the project with maven
+2. Build the project with maven: `mvn install`
 3. Deploy the jar file to a cycle distribution (see [installation guide][3])
-4. Update the `connector-configurations.xml` file
-4. Start Cycle, goto Connectors and add a new Example Connector
+4. Update the `connector-configurations.xml` file by adding:
+```
+  <bean name="trisotechConnectorDefinition" class="org.camunda.bpm.cycle.entity.ConnectorConfiguration">
+    <property name="name" value="Trisotech Connector"/>
+    <property name="connectorClass" value="org.camunda.bpm.cycle.connector.trisotech.TrisotechConnector"/>
+    <property name="properties">
+      <map>
+        <entry key="trisotechBaseUrl" value="https://cloud.trisotech.com"></entry>
+        <entry key="proxyUrl" value=""></entry>
+        <entry key="proxyUsername" value=""></entry>
+        <entry key="proxyPassword" value=""></entry>
+      </map>
+    </property>
+  </bean>
+
+```
+5. In the previous xml file, you can directly modify your trisotechBaseUrl attribute to directly insert your own instance URL
+6. Start Cycle, goto Connectors and add a new Example Connector
 
 ## Maintainers
 
 [Trisotech][4]
 
-[1]: https://docs.camunda.org/manual/7.4/webapps/cycle/
+[1]: https://docs.camunda.org/manual/7.10/webapps/cycle/
 [2]: docs/screenshot.png
-[3]: https://docs.camunda.org/manual/7.4/installation/cycle/#add-connectors
+[3]: https://docs.camunda.org/manual/7.10/installation/cycle/#add-connectors
 [4]: http://trisotech.com
