@@ -1,0 +1,14 @@
+# maven
+target/
+
+#Eclipse
+.settings
+.project
+.classpath
+.metadata
+
+#Vagrant
+.vagrant
+
+#Netbeans
+**/nbactions.tmp
