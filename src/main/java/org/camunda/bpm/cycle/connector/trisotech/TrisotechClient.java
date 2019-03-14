@@ -6,10 +6,8 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.net.URL;
 import java.nio.charset.Charset;
 import java.security.SecureRandom;
 import java.security.cert.X509Certificate;
@@ -471,15 +469,28 @@ public class TrisotechClient {
     public InputStream getXmlFile(TrisotechConnectorNode fileNode) {
         // In order to the URL of the file i need to first the parent directory. Currently there is no way directly get file contents with the file URL
         String fileURL = fileNode.getFileLocation();
+        
+        URI uri = null;
         try {
-            InputStream input = new URL(fileURL).openStream();
-            return input;
-        } catch (MalformedURLException e) {
-            e.printStackTrace();
-        } catch (IOException e) {
+            URIBuilder builder = new URIBuilder(fileURL).setParameter("mode", "json");
+
+            uri = builder.build();
+        } catch (URISyntaxException e) {
             e.printStackTrace();
         }
-        return null;
+        
+        Request request = Request.Get(uri);
+        request.addHeader("accept", ContentType.APPLICATION_JSON.getMimeType());
+        request.addHeader("authtoken", password);
+
+        HttpResponse response = executeAndGetResponse(request);
+        
+        try {
+            return response.getEntity().getContent();
+        } catch(IOException e) {
+            e.printStackTrace();
+            throw new RuntimeException(e.getMessage(), e);
+        }
     }
 
     public String createFileInRepository(TrisotechConnectorNode node, InputStream newContent, String message) {
