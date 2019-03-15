@@ -2,7 +2,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>org.camunda.cycle</groupId>
   <artifactId>trisotech-cycle-connector</artifactId>
-  <version>1.1.0</version>
+  <version>1.2.0</version>
   <name>Trisotech Cycle connector</name>
   <packaging>jar</packaging>
 

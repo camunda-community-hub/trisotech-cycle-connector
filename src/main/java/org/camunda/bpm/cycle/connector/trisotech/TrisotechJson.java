@@ -1,8 +1,9 @@
 package org.camunda.bpm.cycle.connector.trisotech;
 
+import java.text.ParseException;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.List;
+import java.util.logging.Logger;
 
 import org.camunda.bpm.cycle.connector.ConnectorNodeType;
 import org.camunda.bpm.cycle.exception.CycleException;
@@ -11,6 +12,8 @@ import org.codehaus.jettison.json.JSONException;
 import org.codehaus.jettison.json.JSONObject;
 
 public class TrisotechJson {
+
+    private static final Logger LOGGER = Logger.getLogger(TrisotechConnector.class.getName());
 
     // JSON properties/objects
     private static final String JSON_DATA_OBJ = "data";
@@ -27,8 +30,6 @@ public class TrisotechJson {
     private static final String JSON_NAME_VALUE = "name";
 
     private static final String JSON_ERROR_MESSAGE_VALUE = "userMessage";
-
-    private static final String SLASH_CHAR = "/";
 
     public static String extractEmail(JSONObject jsonObj) {
         try {
@@ -71,10 +72,10 @@ public class TrisotechJson {
         }
     }
 
-    public static TrisotechConnectorNode getConnectorNode(String NodeStr, String repName) {
+    public static TrisotechConnectorNode getConnectorNode(String NodeStr, Long connectorId, String repName) {
 
         try {
-            return getConnectorNode(new JSONObject(NodeStr), repName);
+            return getConnectorNode(new JSONObject(NodeStr), connectorId, repName);
         } catch (JSONException e) {
             e.printStackTrace();
             TrisotechConnectorNode errorNode = new TrisotechConnectorNode();
@@ -84,34 +85,10 @@ public class TrisotechJson {
 
     }
 
-    private static TrisotechConnectorNode getRepositoryConnectorNode(JSONObject obj) throws JSONException {
+    private static TrisotechConnectorNode getConnectorNode(JSONObject obj, Long connectorId, String repName) throws JSONException {
         TrisotechConnectorNode connectorNode = new TrisotechConnectorNode();
-
-        connectorNode.setType(ConnectorNodeType.FOLDER);
-
-        if (obj.has("id")) {
-            connectorNode.setId(obj.getString("id"));
-        }
-
-        if (obj.has("message")) {
-            connectorNode.setMessage(obj.getString("message"));
-        }
-        if (obj.has("name")) {
-            connectorNode.setLabel(obj.getString("name"));
-        }
-        if (obj.has("updated")) {
-            connectorNode.setLastModified(new Date(obj.getLong("updated")));
-            // connectorNode.setCreated(new Date(jsonObj.getLong("updated")));
-        }
-
-        // Repositories in trisotech have no path given back - we need to set one in order to create new folders
-        connectorNode.setTrisotechPath(SLASH_CHAR);
-
-        return connectorNode;
-    }
-
-    private static TrisotechConnectorNode getConnectorNode(JSONObject obj, String repName) throws JSONException {
-        TrisotechConnectorNode connectorNode = new TrisotechConnectorNode();
+        connectorNode.setRepositoryId(repName);
+        connectorNode.setConnectorId(connectorId);
         JSONObject jsonObj = new JSONObject();
 
         // Check if there has been an error message
@@ -134,11 +111,11 @@ public class TrisotechJson {
         else if (obj.has(JSON_DATA_OBJ)) {
             Object tempObject = obj.get(JSON_DATA_OBJ);
             if (tempObject instanceof JSONObject) {
-                return getConnectorNode((JSONObject) tempObject, repName);
+                return getConnectorNode((JSONObject) tempObject, connectorId, repName);
 
             } else if (tempObject instanceof JSONArray) { // the method is only looking for one connector node so we're just going to get the first value in the
                                                           // array
-                return getConnectorNode((JSONArray) tempObject, repName);
+                return getConnectorNode(((JSONArray) tempObject).getJSONObject(0), connectorId, repName);
             }
         } else {
             connectorNode.setMessage("Unsuppoted Object Type");
@@ -146,35 +123,36 @@ public class TrisotechJson {
         }
 
         if (jsonObj.has("id")) {
-            connectorNode.setId(repName + jsonObj.getString("id"));
-            // I'm attaching the repository to the start of the ID because i'll need it when querying children.
-            // It will also ensure the ID is unique to other Nodes - without it two files in two different repositories would have the same id and there isn't a
-            // way to tell what repository they're from
+            // Folders ids are not unique across repositories
+            connectorNode.setId(repName + ":" + jsonObj.getString("id"));
+            connectorNode.setTrisotechId(jsonObj.getString("id"));
+
         }
         if (jsonObj.has("path")) {
-            connectorNode.setTrisotechPath(jsonObj.getString("path"));
+            connectorNode.setPath(jsonObj.getString("path"));
         }
         if (jsonObj.has("message")) { // this is no message - might remove this
             connectorNode.setMessage(jsonObj.getString("message"));
         }
         if (jsonObj.has("updated")) {
-            // TODO need to sort out this date object
-            // connectorNode.setLastModified(new Date(jsonObj.getLong("updated")));
-            // connectorNode.setCreated(new Date(jsonObj.getLong("updated")));
+            String updated = jsonObj.getString("updated");
+            try {
+                connectorNode.setCreated(ISO8601DateFormat.INSTANCE.parse(updated));
+                connectorNode.setLastModified(ISO8601DateFormat.INSTANCE.parse(updated));
+            } catch (ParseException e) {
+                e.printStackTrace();
+            }
         }
         if (jsonObj.has("name")) {
             connectorNode.setLabel(jsonObj.getString("name"));
         }
         if (jsonObj.has("url")) {
-            connectorNode.setFileLocation(jsonObj.getString("url"));
+            connectorNode.setURL(jsonObj.getString("url"));
         }
 
-        return connectorNode;
-    }
+        LOGGER.fine("Identified node" + connectorNode);
 
-    private static TrisotechConnectorNode getConnectorNode(JSONArray jsonArr, String repName) throws JSONException {
-        JSONObject newObj = jsonArr.getJSONObject(0);
-        return getConnectorNode(newObj, repName);
+        return connectorNode;
     }
 
     private static String getErrorMessage(JSONObject obj) throws JSONException {
@@ -207,7 +185,7 @@ public class TrisotechJson {
 
             for (int i = 0; i < arr.length(); i++) {
                 JSONObject obj = arr.getJSONObject(i);
-                TrisotechConnectorNode node = getConnectorNode(obj, repName);
+                TrisotechConnectorNode node = getConnectorNode(obj, id, repName);
                 node.setConnectorId(id);
                 connectorNodeList.add(node);
             }
@@ -220,7 +198,7 @@ public class TrisotechJson {
 
     }
 
-    public static List<TrisotechConnectorNode> getRepConnectorNodes(String repStr, Long id) {
+    public static List<TrisotechConnectorNode> getRepConnectorNodes(String repStr, Long connectorId) {
         List<TrisotechConnectorNode> connectorNodeList = new ArrayList<TrisotechConnectorNode>();
 
         try {
@@ -235,8 +213,13 @@ public class TrisotechJson {
 
             for (int i = 0; i < arr.length(); i++) {
                 JSONObject obj = arr.getJSONObject(i);
-                TrisotechConnectorNode node = getRepositoryConnectorNode(obj);
-                node.setConnectorId(id);
+                String repositoryId = obj.getString("id");
+                TrisotechConnectorNode node = new TrisotechConnectorNode(repositoryId + ":" + TrisotechClient.SLASH_CHAR, connectorId,
+                        ConnectorNodeType.FOLDER);
+                node.setTrisotechId(repositoryId);
+                node.setRepositoryId(repositoryId);
+                node.setPath(TrisotechClient.SLASH_CHAR);
+                node.setLabel(obj.getString("name"));
                 connectorNodeList.add(node);
             }
         } catch (JSONException e) {

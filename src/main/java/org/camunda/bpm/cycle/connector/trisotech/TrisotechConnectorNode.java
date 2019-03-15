@@ -23,28 +23,31 @@ import org.camunda.bpm.cycle.connector.ConnectorNodeType;
  */
 public class TrisotechConnectorNode extends ConnectorNode {
 
-    private static final long serialVersionUID = 1L;
-
-    private String fileLocation = "";
-
-    private String trisotechPath = "";
+    private static final long serialVersionUID = 2L;
 
     protected byte[] content;
+
+    protected String repositoryId;
+
+    protected String trisotechId;
+
+    protected String path;
+
+    protected String url;
 
     public TrisotechConnectorNode(String label, long connectorId) {
         super(label, label, connectorId, ConnectorNodeType.FOLDER);
     }
 
-    public TrisotechConnectorNode(String label, String name, ConnectorNodeType nodeType) {
-        super(label, name, nodeType);
+    public TrisotechConnectorNode(String id, String name, ConnectorNodeType nodeType) {
+        super(id, name, nodeType);
     }
 
-    public TrisotechConnectorNode(String label, long connectorId, ConnectorNodeType nodeType) {
+    public TrisotechConnectorNode(String label, Long connectorId, ConnectorNodeType nodeType) {
         super(label, label, connectorId, nodeType);
     }
 
     public TrisotechConnectorNode() {
-        // TODO Auto-generated constructor stub
     }
 
     public byte[] getContent() {
@@ -56,20 +59,42 @@ public class TrisotechConnectorNode extends ConnectorNode {
         this.content = content;
     }
 
-    public String getTrisotechPath() {
-        return trisotechPath;
+    public String getRepositoryId() {
+        return repositoryId;
     }
 
-    public void setTrisotechPath(String trisotechPath) {
-        this.trisotechPath = trisotechPath;
+    public void setRepositoryId(String id) {
+        this.repositoryId = id;
     }
 
-    public String getFileLocation() {
-        return fileLocation;
+    public String getPath() {
+        return path;
     }
 
-    public void setFileLocation(String fileLocation) {
-        this.fileLocation = fileLocation;
+    public void setPath(String path) {
+        this.path = path;
+    }
+
+    public void setURL(String url) {
+        this.url = url;
+    }
+
+    public String getURL() {
+        return url;
+    }
+
+    public String getTrisotechId() {
+        return trisotechId;
+    }
+
+    public void setTrisotechId(String id) {
+        this.trisotechId = id;
+    }
+
+    @Override
+    public String toString() {
+        return "Id: " + getId() + ", Repository:" + getRepositoryId() + ", Path:" + getPath() + ", Name:" + getLabel() + ", Trisotech Id:" + getTrisotechId()
+                + ", URL:" + getURL();
     }
 
 }

@@ -36,6 +36,9 @@ The trisotechBaseUrl should only be modified if your company have a private Digi
 
 [Trisotech][4]
 
+To enable logging, you can modify the logging.properties file and add: `org.camunda.bpm.cycle.connector.trisotech.level = FINE`
+
+
 [1]: https://docs.camunda.org/manual/7.10/webapps/cycle/
 [2]: docs/screenshot.png
 [3]: https://docs.camunda.org/manual/7.10/installation/cycle/#add-connectors

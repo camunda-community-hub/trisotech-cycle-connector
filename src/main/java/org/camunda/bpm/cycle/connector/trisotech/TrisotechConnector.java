@@ -18,10 +18,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.logging.Logger;
 
-import javax.inject.Inject;
-
-import org.camunda.bpm.cycle.configuration.CycleConfiguration;
 import org.camunda.bpm.cycle.connector.Connector;
 import org.camunda.bpm.cycle.connector.ConnectorNode;
 import org.camunda.bpm.cycle.connector.ConnectorNodeType;
@@ -38,8 +36,7 @@ import org.springframework.stereotype.Component;
 @Component
 public class TrisotechConnector extends Connector {
 
-    @Inject
-    private CycleConfiguration cycleConfiguration;
+    private static final Logger LOGGER = Logger.getLogger(TrisotechConnector.class.getName());
 
     public final static String CONFIG_KEY_TRISOTECH_BASE_URL = "trisotechBaseUrl";
 
@@ -53,7 +50,6 @@ public class TrisotechConnector extends Connector {
 
     private boolean isLoggedIn = false;
 
-    //
     protected Map<String, TrisotechConnectorNode> nodes = new HashMap<String, TrisotechConnectorNode>();
 
     @Override
@@ -65,7 +61,6 @@ public class TrisotechConnector extends Connector {
         }
 
         setLoggedIn(getTrisotechClient().login(userName, password));
-        // getNodes();
     }
 
     @Override
@@ -92,9 +87,6 @@ public class TrisotechConnector extends Connector {
             // We can't create folders from the root - they're tecnically repositories
             throw new CycleException("New folders cannot be created from the root directory");
         }
-        // else if (!parent.getId().contains(getTrisotechClient().SLASH_CHAR)){
-        // throw new CycleException("New folders cannot be created from the root directory");
-        // }
 
         String nodeStr = "";
 
@@ -109,7 +101,7 @@ public class TrisotechConnector extends Connector {
             return null;
         }
 
-        TrisotechConnectorNode newNode = TrisotechJson.getConnectorNode(nodeStr, getTrisotechClient().getRespositoryName(parent));
+        TrisotechConnectorNode newNode = TrisotechJson.getConnectorNode(nodeStr, getId(), parent.getRepositoryId());
         if (newNode.getId() == null) { // checking if the node failed to be created
 
             throw new CycleException(newNode.getMessage()); // If the node failed the error message would be stored in the object
@@ -148,7 +140,7 @@ public class TrisotechConnector extends Connector {
         }
 
         // now we just need to find out if it was a success or not, if so we remvoe the node from the hashmap, if not we send back the error message
-        TrisotechConnectorNode nodeStatus = TrisotechJson.getConnectorNode(returnStr, getTrisotechClient().getRespositoryName(trisoNode));
+        TrisotechConnectorNode nodeStatus = TrisotechJson.getConnectorNode(returnStr, getId(), trisoNode.getRepositoryId());
         if (nodeStatus.getId() == null) {
             throw new CycleException(nodeStatus.getMessage()); // If there was a problem this will show the message
         }
@@ -161,9 +153,10 @@ public class TrisotechConnector extends Connector {
     @Override
     public List<ConnectorNode> getChildren(ConnectorNode parentConnector) {
 
+        LOGGER.fine("Getting children of " + parentConnector.getId());
         TrisotechConnectorNode parent = nodes.get(parentConnector.getId());
-        if (parent.getId().equals(TrisotechClient.SLASH_CHAR)) // This is the root, in this case making a call for repositories - not folders
-        {
+        LOGGER.fine("Getting children of Trisotech Node " + parent);
+        if (parent.getRepositoryId() == null) {
             String repStr = getTrisotechClient().getRepositories();
             List<TrisotechConnectorNode> children = TrisotechJson.getRepConnectorNodes(repStr, getId());
             addNodesToMap(children);
@@ -174,7 +167,7 @@ public class TrisotechConnector extends Connector {
 
         } else if (parent.getType() == ConnectorNodeType.FOLDER) { // a folder (OR repository) has been found.
             String childrenStr = getTrisotechClient().getChildren(parent);
-            List<TrisotechConnectorNode> children = TrisotechJson.getConnectorNodeList(childrenStr, getId(), getTrisotechClient().getRespositoryName(parent));
+            List<TrisotechConnectorNode> children = TrisotechJson.getConnectorNodeList(childrenStr, getId(), parent.getRepositoryId());
             addNodesToMap(children);
             return convertToConnectorNodes(children);
         }
@@ -209,26 +202,23 @@ public class TrisotechConnector extends Connector {
         TrisotechConnectorNode connectorNode = nodes.get(node.getId());
 
         // ConnectorNodeType.
-
-        switch (connectorNode.getType()) {
-        case BPMN_FILE:
-            InputStream xmlStream = getTrisotechClient().getXmlFile(connectorNode);
-            return xmlStream;
-        case PNG_FILE:
-            InputStream xmlStream2 = getTrisotechClient().getXmlFile(connectorNode);
-            return xmlStream2;
-        default:
-            InputStream xmlStream1 = getTrisotechClient().getXmlFile(connectorNode);
-            return xmlStream1;
+        if (connectorNode != null) {
+            switch (connectorNode.getType()) {
+            case BPMN_FILE:
+                InputStream xmlStream = getTrisotechClient().getXmlFile(connectorNode);
+                return xmlStream;
+            default:
+                return null;
+            }
         }
+
+        return null;
 
     }
 
     private void getNodes() {
         ConnectorNode rootNode = getRoot();
         getAllChildrenNodes(rootNode);
-
-        // getChildren(Rootnode);
 
     }
 
@@ -293,12 +283,16 @@ public class TrisotechConnector extends Connector {
     public ContentInformation updateContent(ConnectorNode node, InputStream newContent, String message) throws Exception {
         TrisotechConnectorNode trisotechConnectorNode = nodes.get(node.getId());
 
-        String nodeStr = getTrisotechClient().updateContent(trisotechConnectorNode, newContent, message);
-        TrisotechConnectorNode updatedTrisotechConnectorNode = TrisotechJson.getConnectorNode(nodeStr,
-                getTrisotechClient().getRespositoryName(trisotechConnectorNode));
-        nodes.put(updatedTrisotechConnectorNode.getId(), updatedTrisotechConnectorNode);
+        if (node.getType() == ConnectorNodeType.BPMN_FILE) {
+            String nodeStr = getTrisotechClient().updateFileInRepository(trisotechConnectorNode, newContent, message);
 
-        return getContentInformation(updatedTrisotechConnectorNode);
+            TrisotechConnectorNode updatedTrisotechConnectorNode = TrisotechJson.getConnectorNode(nodeStr, getId(), trisotechConnectorNode.getRepositoryId());
+
+            nodes.put(updatedTrisotechConnectorNode.getId(), updatedTrisotechConnectorNode);
+
+            return getContentInformation(updatedTrisotechConnectorNode);
+        }
+        return new ContentInformation(false, null);
     }
 
     public boolean isLoggedIn() {

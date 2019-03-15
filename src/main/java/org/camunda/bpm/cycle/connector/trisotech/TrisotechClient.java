@@ -1,11 +1,7 @@
 package org.camunda.bpm.cycle.connector.trisotech;
 
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.Charset;
@@ -23,7 +19,6 @@ import javax.net.ssl.SSLSocket;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509TrustManager;
 
-import org.apache.commons.io.IOUtils;
 import org.apache.http.HttpException;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpRequest;
@@ -47,7 +42,7 @@ import org.apache.http.conn.ssl.SSLSocketFactory;
 import org.apache.http.conn.ssl.X509HostnameVerifier;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.mime.MultipartEntity;
-import org.apache.http.entity.mime.content.FileBody;
+import org.apache.http.entity.mime.content.InputStreamBody;
 import org.apache.http.impl.NoConnectionReuseStrategy;
 import org.apache.http.impl.client.DefaultHttpClient;
 import org.apache.http.impl.conn.PoolingClientConnectionManager;
@@ -56,7 +51,6 @@ import org.apache.http.params.HttpConnectionParams;
 import org.apache.http.params.SyncBasicHttpParams;
 import org.apache.http.protocol.HttpContext;
 import org.apache.http.util.EntityUtils;
-import org.camunda.bpm.cycle.connector.ConnectorNode;
 import org.camunda.bpm.cycle.connector.ConnectorNodeType;
 import org.camunda.bpm.cycle.exception.CycleException;
 import org.codehaus.jettison.json.JSONException;
@@ -64,11 +58,11 @@ import org.codehaus.jettison.json.JSONObject;
 
 public class TrisotechClient {
 
-    private static final Logger logger = Logger.getLogger(TrisotechClient.class.getName());
+    private static final Logger LOGGER = Logger.getLogger(TrisotechClient.class.getName());
 
     private static final String UTF_8 = "UTF-8";
 
-    static final String SLASH_CHAR = "/"; // NOTE!: this is also defined in TrisotechJson.java so if you change it here, change it there as well.
+    static final String SLASH_CHAR = "/";
 
     private static final int MAX_OPEN_CONNECTIONS_TOTAL = 20;
 
@@ -84,15 +78,13 @@ public class TrisotechClient {
 
     private static final String LOGIN_URL_SUFFIX = "login";
 
-    private static final String REPOSITORY_URL_SUFFIX = "repository"; // |personal|
+    private static final String REPOSITORY_URL_SUFFIX = "repository";
 
     private static final String REPOSITORY_CONTENT_URL_SUFFIX = "repositorycontent";
 
     private static final String MIMETYPE_URL_SUFFIX = "application/bpmn-2-0+xml";
 
     private static final String DEFAULT_BPMN_FILE_LOCATION = "EmptyTrisotechFile.bpmn";
-
-    private static final String CYCLE_TEMP_DIR = "camunda_cycle";
 
     private DefaultHttpClient apacheHttpClient;
 
@@ -175,7 +167,7 @@ public class TrisotechClient {
 
             schemeRegistry.register(new Scheme("https", 443, sslSF));
         } catch (Exception e) {
-            logger.log(Level.SEVERE, "Unable to modify SSLSocketFactory to allow self-signed certificates.", e);
+            LOGGER.log(Level.SEVERE, "Unable to modify SSLSocketFactory to allow self-signed certificates.", e);
         }
 
         // configure connection params
@@ -224,14 +216,13 @@ public class TrisotechClient {
                 connectionManager.closeIdleConnections(CONNECTION_IDLE_CLOSE, TimeUnit.MILLISECONDS);
 
                 String uri = request.getRequestLine().getUri().toString();
-                logger.fine("Sending request to " + uri);
-                logger.fine("RequestHeaders: " + request.getAllHeaders());
+                LOGGER.fine("Sending request to " + uri);
             }
         });
 
         apacheHttpClient.addResponseInterceptor(new HttpResponseInterceptor() {
             public void process(HttpResponse response, HttpContext context) throws HttpException, IOException {
-                logger.fine("Received response with status " + response.getStatusLine().getStatusCode());
+                LOGGER.fine("Received response with status " + response.getStatusLine().getStatusCode());
             }
         });
 
@@ -251,7 +242,7 @@ public class TrisotechClient {
                 apacheHttpClient.getCredentialsProvider().setCredentials(new AuthScope(proxyHost, proxyPort),
                         new UsernamePasswordCredentials(proxyUsername, proxyPassword));
             }
-            logger.fine("Configured tristech client with proxy settings: url: " + proxyUrl + ", proxyUsername: " + proxyUsername);
+            LOGGER.fine("Configured tristech client with proxy settings: url: " + proxyUrl + ", proxyUsername: " + proxyUsername);
         }
     }
 
@@ -259,10 +250,11 @@ public class TrisotechClient {
         // Username is ignored
         this.password = password;
 
+        LOGGER.fine("Login to Trisotech connector with token (password): " + password.substring(0, 4) + "...");
+
         URI uri = null;
         try {
-            URIBuilder builder = new URIBuilder(requestUrl(LOGIN_URL_SUFFIX).toString()).setParameter("mode", "json");
-
+            URIBuilder builder = new URIBuilder(requestUrl(LOGIN_URL_SUFFIX).toString());
             uri = builder.build();
         } catch (URISyntaxException e) {
             e.printStackTrace();
@@ -275,31 +267,34 @@ public class TrisotechClient {
         HttpResponse response = executeAndGetResponse(request);
 
         String responseResult = extractResponseResult(response);
+        String email = null;
         try {
-            String email = TrisotechJson.extractEmail(new JSONObject(responseResult));
+            email = TrisotechJson.extractEmail(new JSONObject(responseResult));
             if (responseResult == null || responseResult.equals("") || responseResult.contains("InvalidMemberCredentials") || email == null) {
                 throw new CycleException("Could not login into connector '" + configurationName
                         + "'. The user name and/or password might be incorrect. Make sure that you use the AuthToken obtained from " + trisotechBaseUrl
                         + "/login as your password.");
             }
 
-            logger.fine("Logged is as: " + email);
+            LOGGER.fine("Logged is as: " + email);
 
         } catch (JSONException e) {
-
-            e.printStackTrace();
+            LOGGER.log(Level.WARNING, "Error logging in to Trisotech Connector", e);
+        }
+        if (email == null) {
+            throw new CycleException("Could not login to the Trisotech connector");
         }
 
-        return true;
+        return email != null;
     }
 
     public String getRepositories() {
 
+        LOGGER.fine("Retrieving repositories");
+
         URI uri = null;
         try {
-            // https://cloud.trisotech.com/publicapi/repository?mode=json
-            URIBuilder builder = new URIBuilder(requestUrl(REPOSITORY_URL_SUFFIX).toString()).setParameter("mimetype", MIMETYPE_URL_SUFFIX).setParameter("mode",
-                    "json");
+            URIBuilder builder = new URIBuilder(requestUrl(REPOSITORY_URL_SUFFIX).toString());
             uri = builder.build();
         } catch (URISyntaxException e) {
             e.printStackTrace();
@@ -329,7 +324,7 @@ public class TrisotechClient {
             builder.setPath(builder.getPath() + sb.toString());
 
             URI requestURI = builder.build();
-            logger.fine(requestURI.toString());
+            LOGGER.fine(requestURI.toString());
             return requestURI;
         } catch (URISyntaxException e) {
             throw new CycleException("Failed to construct url for trisotech request.", e);
@@ -359,11 +354,12 @@ public class TrisotechClient {
     }
 
     public String getChildren(TrisotechConnectorNode parent) {
+        LOGGER.fine("Retrieving BPMN repository content of '" + parent.getRepositoryId() + "' at path '" + parent.getPath() + "'");
 
         URI uri = null;
         try {
-            URIBuilder builder = new URIBuilder(requestUrl(REPOSITORY_CONTENT_URL_SUFFIX).toString()).setParameter("repository", getRespositoryName(parent))
-                    .setParameter("mode", "json").setParameter("mimetype", MIMETYPE_URL_SUFFIX).setParameter("path", parent.getTrisotechPath());
+            URIBuilder builder = new URIBuilder(requestUrl(REPOSITORY_CONTENT_URL_SUFFIX).toString()).setParameter("repository", parent.getRepositoryId())
+                    .setParameter("mimetype", MIMETYPE_URL_SUFFIX).setParameter("path", parent.getPath());
             uri = builder.build();
         } catch (URISyntaxException e) {
             e.printStackTrace();
@@ -380,42 +376,14 @@ public class TrisotechClient {
         return responseResult;
     }
 
-    private String getPathFromNode(ConnectorNode parent) {
-        String parentID = parent.getId();
-        if (!parentID.contains(SLASH_CHAR)) {
-            return SLASH_CHAR;
-        } else if (parentID.indexOf(SLASH_CHAR) == parentID.length() - 1) // So this tells us the first occurrence of a slash Character is also the last
-                                                                          // character - so this is a repository so we have to remove the name
-        {
-            return SLASH_CHAR;
-        } else {
-            String pathWithOutRepository = parentID.substring(parentID.indexOf(SLASH_CHAR), parentID.length());
-            return pathWithOutRepository;
-        }
-
-    }
-
-    public String getRespositoryName(TrisotechConnectorNode parent) {
-        String id = parent.getId();
-        if (id.indexOf(SLASH_CHAR) == -1) {
-            return parent.getId(); // Turns out this is a repository and has no "path"
-
-        } else {
-            String rep = id.substring(0, id.indexOf(TrisotechClient.SLASH_CHAR));
-            return rep;
-        }
-
-    }
-
     public String createNewEmptyFile(TrisotechConnectorNode parent, String label) {
+        LOGGER.fine("Creating new BPMN file in repository  '" + parent.getRepositoryId() + "' at path '" + parent.getPath() + "' with name " + label);
 
+        if (label.endsWith(".bpmn")) {
+            label = label.substring(0, label.length() - ".bpmn".length());
+        }
         TrisotechConnectorNode tempNode = new TrisotechConnectorNode();
         tempNode.setType(ConnectorNodeType.BPMN_FILE);
-        tempNode.setLabel(label);
-        tempNode.setId(parent.getId() + SLASH_CHAR + label);
-        tempNode.setTrisotechPath(getPathFromNode(parent)); // this is being set so when the file is saved the rest call can be generated easily
-
-        String returnString = "";
 
         try {
 
@@ -426,30 +394,43 @@ public class TrisotechClient {
                 input = getClass().getResourceAsStream("resources/" + DEFAULT_BPMN_FILE_LOCATION);
             }
 
-            returnString = createFileInRepository(tempNode, input, "");
+            URI uri = null;
+            try {
+                URIBuilder builder = new URIBuilder(requestUrl(REPOSITORY_CONTENT_URL_SUFFIX).toString()).setParameter("repository", parent.getRepositoryId())
+                        .setParameter("mimetype", MIMETYPE_URL_SUFFIX).setParameter("name", label).setParameter("path", parent.getPath());
+                uri = builder.build();
+            } catch (URISyntaxException e) {
+                e.printStackTrace();
+            }
 
+            HttpClient httpclient = new DefaultHttpClient();
+            HttpPost httpPost = new HttpPost(uri);
+            httpPost.addHeader("accept", ContentType.APPLICATION_JSON.getMimeType());
+            httpPost.addHeader("authtoken", password);
+
+            InputStreamBody uploadFilePart = new InputStreamBody(input, label);
+            MultipartEntity reqEntity = new MultipartEntity();
+            reqEntity.addPart("file", uploadFilePart);
+            httpPost.setEntity(reqEntity);
+
+            HttpResponse response = httpclient.execute(httpPost);
+            String responseResult = extractResponseResult(response);
+
+            return responseResult;
         } catch (Exception e) {
             e.printStackTrace();
         }
 
-        return returnString;
+        return "";
     }
 
     public String createFolder(TrisotechConnectorNode parent, String label) {
+        LOGGER.fine("Creating folder in repository '" + parent.getRepositoryId() + "' at path '" + parent.getPath() + "' with name '" + label + "'");
 
         URI uri = null;
         try {
-            URIBuilder builder = new URIBuilder(requestUrl(REPOSITORY_CONTENT_URL_SUFFIX).toString()).setParameter("repository", getRespositoryName(parent))
-                    .setParameter("mode", "json").setParameter("path", parent.getTrisotechPath() + label); // we're
-                                                                                                           // adding
-                                                                                                           // the
-                                                                                                           // parent
-                                                                                                           // directory
-                                                                                                           // and the
-                                                                                                           // name of
-                                                                                                           // the file
-                                                                                                           // together.
-            // .setParameter("path", getPathFromNode(parent)+label);
+            URIBuilder builder = new URIBuilder(requestUrl(REPOSITORY_CONTENT_URL_SUFFIX).toString()).setParameter("repository", parent.getRepositoryId())
+                    .setParameter("path", (parent.getPath().length() > 0 ? parent.getPath() : "") + SLASH_CHAR + label);
             uri = builder.build();
         } catch (URISyntaxException e) {
             e.printStackTrace();
@@ -467,43 +448,42 @@ public class TrisotechClient {
     }
 
     public InputStream getXmlFile(TrisotechConnectorNode fileNode) {
+
+        LOGGER.fine("Downloading BPMN file in repository '" + fileNode.getRepositoryId() + "' at path '" + fileNode.getPath() + "' with name '"
+                + fileNode.getLabel() + "' at URL '" + fileNode.getURL() + "'");
+
         // In order to the URL of the file i need to first the parent directory. Currently there is no way directly get file contents with the file URL
-        String fileURL = fileNode.getFileLocation();
-        
+        String fileURL = fileNode.getURL();
+
         URI uri = null;
         try {
-            URIBuilder builder = new URIBuilder(fileURL).setParameter("mode", "json");
+            URIBuilder builder = new URIBuilder(fileURL);
 
             uri = builder.build();
         } catch (URISyntaxException e) {
             e.printStackTrace();
         }
-        
+
         Request request = Request.Get(uri);
-        request.addHeader("accept", ContentType.APPLICATION_JSON.getMimeType());
         request.addHeader("authtoken", password);
 
         HttpResponse response = executeAndGetResponse(request);
-        
+
         try {
             return response.getEntity().getContent();
-        } catch(IOException e) {
-            e.printStackTrace();
-            throw new RuntimeException(e.getMessage(), e);
+        } catch (IOException e) {
+            throw new CycleException(e.getMessage(), e);
         }
     }
 
-    public String createFileInRepository(TrisotechConnectorNode node, InputStream newContent, String message) {
+    public String updateFileInRepository(TrisotechConnectorNode node, InputStream newContent, String message) {
+
+        LOGGER.fine("Updating BPMN file in repository '" + node.getRepositoryId() + "' at path '" + node.getPath() + "' with name '" + node.getLabel()
+                + "' at URL '" + node.getURL() + "'");
 
         URI uri = null;
         try {
-            URIBuilder builder = new URIBuilder(requestUrl(REPOSITORY_CONTENT_URL_SUFFIX).toString()).setParameter("repository", getRespositoryName(node))
-                    .setParameter("mimetype", MIMETYPE_URL_SUFFIX).setParameter("mode", "json").setParameter("path", node.getTrisotechPath()); // this should be
-                                                                                                                                               // the name of
-                                                                                                                                               // the path
-                                                                                                                                               // without the
-                                                                                                                                               // filename
-                                                                                                                                               // attached
+            URIBuilder builder = new URIBuilder(node.getURL());
             uri = builder.build();
         } catch (URISyntaxException e) {
             e.printStackTrace();
@@ -512,96 +492,34 @@ public class TrisotechClient {
         HttpClient httpclient = new DefaultHttpClient();
         HttpPost httpPost = new HttpPost(uri);
         httpPost.addHeader("authtoken", password);
+        httpPost.addHeader("accept", ContentType.APPLICATION_JSON.getMimeType());
 
-        OutputStream outputStream;
+        InputStreamBody uploadFilePart = new InputStreamBody(newContent, node.getLabel());
+        MultipartEntity reqEntity = new MultipartEntity();
+        reqEntity.addPart("file", uploadFilePart);
+        httpPost.setEntity(reqEntity);
+
+        HttpResponse response;
 
         try {
-
-            File newContentfile = createFile(getFileName(node, true));
-            outputStream = new FileOutputStream(newContentfile);
-            IOUtils.copy(newContent, outputStream);
-            outputStream.close();
-
-            FileBody uploadFilePart = new FileBody(newContentfile);
-            MultipartEntity reqEntity = new MultipartEntity();
-            reqEntity.addPart("file", uploadFilePart);
-            httpPost.setEntity(reqEntity);
-
-            HttpResponse response;
-
             response = httpclient.execute(httpPost);
             String responseResult = extractResponseResult(response);
-
-            // now to clean up the temp file.
-            newContentfile.delete();
-
             return responseResult;
-
-        } catch (FileNotFoundException e) {
-            e.printStackTrace();
         } catch (IOException e) {
-            e.printStackTrace();
-        }
-
-        return "";
-
-    }
-
-    private File createFile(String fileName) {
-        String tempDirProperty = "java.io.tmpdir";
-        String fileSparator = System.getProperty("file.separator");
-
-        String tempDir = System.getProperty(tempDirProperty); // <HOME>\AppData\Local\Temp\
-
-        File newFile = new File(tempDir + CYCLE_TEMP_DIR + fileSparator + fileName);
-        File parent = newFile.getParentFile();
-        if (!parent.exists()) {
-            parent.mkdirs();
-        }
-
-        return newFile;
-    }
-
-    public String updateContent(TrisotechConnectorNode node, InputStream newContent, String message) {
-
-        // Need to get rid of the file from the trisotech repository before the new one goes up.
-        // deleteFile(node);
-
-        // Now i can try to upload the new file.
-        return createFileInRepository(node, newContent, message);
-
-    }
-
-    private String getFileName(TrisotechConnectorNode node, boolean includeExtention) {
-        String id = node.getId();
-        String fileName = "";
-        if (id.indexOf(SLASH_CHAR) == -1) {
-            return node.getId(); // Turns out this is a repository and has no "path"
-
-        } else {
-            if (includeExtention) {
-                fileName = id.substring(id.lastIndexOf(TrisotechClient.SLASH_CHAR) + 1, id.length());
-            } else {
-                fileName = id.substring(id.lastIndexOf(TrisotechClient.SLASH_CHAR) + 1, id.lastIndexOf('.'));
-            }
-
-            return fileName;
+            throw new CycleException(e);
         }
 
     }
 
     public String deleteFolder(TrisotechConnectorNode node) {
+        LOGGER.fine("Delete folder in repository '" + node.getRepositoryId() + "' at path '" + node.getPath() + "' with name '" + node.getLabel() + " with id '"
+                + node.getTrisotechId() + "'");
 
         URI uri = null;
         try {
-            URIBuilder builder = new URIBuilder(requestUrl(REPOSITORY_CONTENT_URL_SUFFIX).toString()).setParameter("repository", getRespositoryName(node))
-                    .setParameter("mode", "json").setParameter("id", node.getTrisotechPath()); // The trisotech path
-                                                                                               // of a folder node
-                                                                                               // contains it's name
-                                                                                               // e.g.
-                                                                                               // /test1/thisfolder -
-                                                                                               // so no need to add
-                                                                                               // the "lable"
+            URIBuilder builder = new URIBuilder(requestUrl(REPOSITORY_CONTENT_URL_SUFFIX).toString()).setParameter("repository", node.getRepositoryId())
+                    .setParameter("id", node.getTrisotechId());
+
             uri = builder.build();
         } catch (URISyntaxException e) {
             e.printStackTrace();
@@ -619,23 +537,13 @@ public class TrisotechClient {
     }
 
     public String deleteFile(TrisotechConnectorNode node) {
+        LOGGER.fine("Delete file in repository '" + node.getRepositoryId() + "' at path '" + node.getPath() + "' with name '" + node.getLabel() + " with id '"
+                + node.getTrisotechId() + "'");
 
         URI uri = null;
         try {
-            URIBuilder builder = new URIBuilder(requestUrl(REPOSITORY_CONTENT_URL_SUFFIX).toString()).setParameter("repository", getRespositoryName(node))
-                    .setParameter("mode", "json").setParameter("mimetype", MIMETYPE_URL_SUFFIX).setParameter("sku", node.getTrisotechPath() + node.getLabel()); // The
-                                                                                                                                                                // "label"
-                                                                                                                                                                // in
-                                                                                                                                                                // this
-                                                                                                                                                                // case
-                                                                                                                                                                // is
-                                                                                                                                                                // in
-                                                                                                                                                                // fact
-                                                                                                                                                                // the
-                                                                                                                                                                // ID
-                                                                                                                                                                // on
-                                                                                                                                                                // there
-                                                                                                                                                                // side.
+            URIBuilder builder = new URIBuilder(requestUrl(REPOSITORY_CONTENT_URL_SUFFIX).toString()).setParameter("repository", node.getRepositoryId())
+                    .setParameter("id", node.getTrisotechId());
             uri = builder.build();
         } catch (URISyntaxException e) {
             e.printStackTrace();
